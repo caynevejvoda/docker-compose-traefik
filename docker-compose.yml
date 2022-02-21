@@ -1,0 +1,64 @@
+version: "3.8"
+
+
+
+services:
+  traefik:
+    image: "traefik:v2.5"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--certificatesresolvers.${TLS_RESOLVER}.acme.dnschallenge=true"
+      - "--certificatesresolvers.${TLS_RESOLVER}.acme.dnschallenge.provider=inwx"
+      - "--certificatesresolvers.${TLS_RESOLVER}.acme.email=${LETSENCRYPT_EMAIL}"
+      - "--certificatesresolvers.${TLS_RESOLVER}.acme.storage=/letsencrypt/acme.json"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=${TLS_RESOLVER}"
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.middlewares=api"
+      - "traefik.http.middlewares.api.ipwhitelist.sourcerange=${IPWHITELIST}"
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - "INWX_USERNAME=${PROVIDER_USERNAME}"
+      - "INWX_PASSWORD=${PROVIDER_PASSWORD}"
+    volumes:
+      - "traefik_ssl_certs:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - proxy
+
+
+
+  whoami:
+    image: "traefik/whoami"
+    container_name: "simple-service"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`${WHOAMI_DOMAIN}`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls.certresolver=${TLS_RESOLVER}"
+      - "traefik.http.routers.whoami.middlewares=whoami"
+      - "traefik.http.middlewares.whoami.ipwhitelist.sourcerange=${IPWHITELIST}"
+    networks:
+      - proxy
+
+
+
+volumes:
+  traefik_ssl_certs:
+
+
+networks:
+  proxy:
+    name: traefik_default
